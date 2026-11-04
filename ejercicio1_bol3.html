@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+<title>Modos normales de tres masas</title>
+<style>
+:root{
+  --bg:#f7f7f5;--card:#fff;--fg:#1d1d1b;--mute:#6b6b66;--line:#d9d9d3;
+  --spring:#3b6fd4;--O:#d9443a;--C:#4a4a48;--ghost:#bdbdb6;--acc:#3b6fd4;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px)
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg)}
+main{max-width:1500px;margin:0 auto;padding:20px 16px 32px}
+h1{font-size:1.4rem;margin:0 0 4px}
+p.sub{margin:0 0 16px;color:var(--mute);font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.card h2{font-size:1rem;margin:0}
+.card .d{color:var(--mute);font-size:.85rem;margin:2px 0 6px}
+canvas{width:100%;height:auto;display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:stretch}
+.grid .card{margin-bottom:0}
+#cards{display:flex;flex-direction:column;gap:12px}
+#supc,#grc{display:flex;flex-direction:column}
+#supc .cv,#grc .cv{position:relative;flex:1;min-height:190px}
+#supc canvas,#grc canvas{position:absolute;inset:0;width:100%;height:100%}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+.ctl{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:14px;font-size:.9rem}
+.ctl label{display:flex;gap:8px;align-items:center}
+button{font:inherit;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+input[type=range],input[type=checkbox]{accent-color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>Modos normales de tres masas con extremos fijos</h1>
+<p class="sub">Tres masas idénticas $m$ unidas por cuatro resortes idénticos $k$, con los extremos fijos a las paredes. Unidades con $k/m=1$.</p>
+<div class="ctl">
+<button id="pp">Pausa</button>
+</div>
+<div class="grid">
+<div id="cards"></div>
+<div class="card" id="supc">
+<h2>Coordenadas $x_1, x_2, x_3$: superposición de modos</h2>
+<div class="d">Suma de los tres modos con las amplitudes $A_i$ y fases $\varphi_i$ elegidas en cada tarjeta.</div>
+<div class="cv"><canvas id="cvx"></canvas></div>
+</div>
+<div class="card" id="grc">
+<h2>Posición frente a tiempo</h2>
+<div class="d">$x_1(t)$, $x_2(t)$ y $x_3(t)$ en los últimos instantes (desplazamiento respecto al equilibrio).</div>
+<div class="ctl">
+<label><input type="checkbox" class="sx" checked> $x_1$</label>
+<label><input type="checkbox" class="sx" checked> $x_2$</label>
+<label><input type="checkbox" class="sx" checked> $x_3$</label>
+</div>
+<div class="cv"><canvas id="cvg"></canvas></div>
+</div>
+</div>
+</main>
+<script>
+const W=460,H=190,D=80;
+const s2=Math.SQRT2;
+// k/m = 1  ->  omega^2 = 2, 2-sqrt2, 2+sqrt2
+// u = columna de la matriz de modos (ya con el factor 1/sqrt2 incluido)
+const modes=[
+ {k:1,n:"$\\omega_1=\\sqrt{2k/m}$",d:"La masa central permanece quieta; las masas extremas oscilan en oposición.",
+  w:Math.sqrt(2),u:[1/s2,0,-1/s2]},
+ {k:2,n:"$\\omega_2=\\sqrt{(2-\\sqrt{2})\\,k/m}$",d:"Modo de menor frecuencia: las tres masas van en el mismo sentido, la central con más amplitud.",
+  w:Math.sqrt(2-s2),u:[1/2,1/s2,1/2]},
+ {k:3,n:"$\\omega_3=\\sqrt{(2+\\sqrt{2})\\,k/m}$",d:"Modo de mayor frecuencia: la masa central se mueve en contrafase con las extremas.",
+  w:Math.sqrt(2+s2),u:[1/2,-1/s2,1/2]},
+];
+const cards=document.getElementById('cards');
+modes.forEach(m=>{
+ const c=document.createElement('div');c.className='card';
+ c.innerHTML='<h2>'+m.n+'</h2><div class="d">'+m.d+'</div>'+
+  '<div class="ctl">'+
+  '<label>$A_'+m.k+'$ <input class="A" type="range" min="0" max="1" step="0.05" value="1"></label>'+
+  '<label>$\\varphi_'+m.k+'$ <input class="P" type="range" min="0" max="6.283" step="0.05" value="0"></label>'+
+  '</div><canvas width="'+W+'" height="'+H+'"></canvas>';
+ cards.appendChild(c);m.cv=c.querySelector('canvas');m.ctx=m.cv.getContext('2d');
+ m.A=c.querySelector('.A');m.P=c.querySelector('.P');
+});
+let t=0,last=performance.now(),run=true;
+const SPD=1,SCALE=22,TRATE=2; // SCALE: px por unidad de desplazamiento
+const pp=document.getElementById('pp');
+pp.onclick=()=>{run=!run;pp.textContent=run?'Pausa':'Reanudar'};
+const css=getComputedStyle(document.documentElement);
+function col(v){return css.getPropertyValue(v).trim()}
+function spring(g,a,b,ra,rb){
+ const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),ex=dx/L,ey=dy/L,nx=-ey,ny=ex;
+ const x0=ra,x1=L-rb,n=8,pad=6;g.beginPath();
+ g.moveTo(a[0]+ex*x0,a[1]+ey*x0);
+ g.lineTo(a[0]+ex*(x0+pad),a[1]+ey*(x0+pad));
+ for(let i=0;i<n;i++){const f=x0+pad+(x1-x0-2*pad)*(i+.5)/n,sg=i%2?1:-1;
+  g.lineTo(a[0]+ex*f+nx*8*sg,a[1]+ey*f+ny*8*sg)}
+ g.lineTo(a[0]+ex*(x1-pad),a[1]+ey*(x1-pad));g.lineTo(a[0]+ex*x1,a[1]+ey*x1);g.stroke();
+}
+function atom(g,p,rad,color,label){
+ g.fillStyle=color;g.beginPath();g.arc(p[0],p[1],rad,0,7);g.fill();
+ g.fillStyle='#fff';g.font='bold 14px system-ui,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(label,p[0],p[1]+1);
+}
+function wall(g,x,side){ // side=-1 pared izquierda, +1 pared derecha
+ g.strokeStyle=col('--C');g.lineWidth=3;g.setLineDash([]);
+ g.beginPath();g.moveTo(x,H/2-45);g.lineTo(x,H/2+45);g.stroke();
+ g.lineWidth=1.2;
+ for(let y=H/2-45;y<=H/2+45;y+=9){g.beginPath();g.moveTo(x,y+9);g.lineTo(x+side*9,y);g.stroke()}
+}
+const R=15,LAB=['1','2','3'];
+function scene(g,x,sc){
+ const xw0=W/2-2*D,xw1=W/2+2*D;
+ const eq=[[W/2-D,H/2],[W/2,H/2],[W/2+D,H/2]];
+ g.strokeStyle=col('--ghost');g.setLineDash([3,4]);g.lineWidth=1;
+ eq.forEach(p=>{g.beginPath();g.moveTo(p[0],p[1]-60);g.lineTo(p[0],p[1]+60);g.stroke()});g.setLineDash([]);
+ wall(g,xw0,-1);wall(g,xw1,1);
+ const pos=eq.map((p,i)=>[p[0]+sc*x[i],p[1]]);
+ const chain=[[xw0,H/2],...pos,[xw1,H/2]],rad=[0,R,R,R,0];
+ g.strokeStyle=col('--spring');g.lineWidth=2.5;g.lineJoin='round';
+ for(let i=0;i<4;i++)spring(g,chain[i],chain[i+1],rad[i],rad[i+1]);
+ pos.forEach((p,i)=>atom(g,p,R,col('--O'),LAB[i]));
+}
+function draw(){
+ modes.forEach(m=>{
+  const g=m.ctx;g.clearRect(0,0,W,H);
+  const c=m.A.value*Math.sin(m.w*t+ +m.P.value);
+  scene(g,m.u.map(u=>u*c),SCALE);
+ });
+}
+
+// ---- Coordenadas x1, x2, x3 (superposición de los tres modos) ----
+const cvx=document.getElementById('cvx'),gx=cvx.getContext('2d');
+const SX=[...document.querySelectorAll('.sx')];
+const cvg=document.getElementById('cvg'),gg=cvg.getContext('2d');
+[cvx,cvg].forEach(c=>new ResizeObserver(()=>{const b=c.parentElement.getBoundingClientRect();
+ c.width=Math.max(1,Math.round(b.width));c.height=Math.max(1,Math.round(b.height))}).observe(c.parentElement));
+
+function coords(t){
+ const s=modes.map(m=>m.A.value*Math.sin(m.w*t+ +m.P.value));
+ return [0,1,2].map(i=>modes[0].u[i]*s[0]+modes[1].u[i]*s[1]+modes[2].u[i]*s[2]);
+}
+function drawX(){
+ const x=coords(t),g=gx,k=Math.min(cvx.width/W,1.5);
+ g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,cvx.width,cvx.height);
+ g.setTransform(k,0,0,k,cvx.width/2-W*k/2,cvx.height/2-H*k/2);
+ scene(g,x,SCALE*0.8);
+}
+
+function drawG(){
+ const g=gg,w=cvg.width,h=cvg.height,Tw=30,Y=1.8,N=400;
+ const L=42,Rm=12,T=30,B=26,pw=w-L-Rm,ph=h-T-B;
+ const cs=[col('--O'),col('--C'),'#2e9e6b'],nm=['x\u2081','x\u2082','x\u2083'];
+ g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,w,h);
+ if(pw<20||ph<20)return;
+ const X=tt=>L+(tt-(t-Tw))/Tw*pw, Yp=v=>T+ph/2-v/Y*ph/2;
+ g.font='11px system-ui,sans-serif';g.lineWidth=1;g.textBaseline='middle';
+ g.textAlign='right';
+ [-1,0,1].forEach(v=>{g.strokeStyle=v?col('--line'):col('--ghost');g.setLineDash(v?[3,4]:[]);
+  g.beginPath();g.moveTo(L,Yp(v));g.lineTo(L+pw,Yp(v));g.stroke();
+  g.fillStyle=col('--mute');g.fillText(v,L-6,Yp(v))});
+ g.setLineDash([]);
+ g.textAlign='center';g.textBaseline='top';
+ for(let k=Math.ceil((t-Tw)/5);k*5<=t;k++){const xx=X(k*5);
+  g.strokeStyle=col('--line');g.beginPath();g.moveTo(xx,T+ph);g.lineTo(xx,T+ph+4);g.stroke();
+  g.fillStyle=col('--mute');g.fillText(k*5,xx,T+ph+6)}
+ g.textAlign='right';g.fillText('t',w-Rm,T+ph+6);
+ g.strokeStyle=col('--ghost');g.strokeRect(L,T,pw,ph);
+ g.save();g.beginPath();g.rect(L,T,pw,ph);g.clip();g.lineWidth=2;g.lineJoin='round';
+ for(let j=0;j<3;j++){if(!SX[j].checked)continue;g.strokeStyle=cs[j];g.beginPath();
+  for(let i=0;i<=N;i++){const tt=t-Tw+Tw*i/N,v=coords(tt)[j];
+   i?g.lineTo(X(tt),Yp(v)):g.moveTo(X(tt),Yp(v))}
+  g.stroke()}
+ g.restore();
+ const now=coords(t);
+ for(let j=0;j<3;j++){if(!SX[j].checked)continue;g.fillStyle=cs[j];g.beginPath();g.arc(X(t),Yp(now[j]),3.5,0,7);g.fill()}
+ g.textAlign='left';g.textBaseline='middle';g.font='bold 13px system-ui,sans-serif';
+ let nl=0;
+ for(let j=0;j<3;j++){if(!SX[j].checked)continue;const lx=L+(nl++)*70;g.strokeStyle=cs[j];g.lineWidth=2.5;
+  g.beginPath();g.moveTo(lx,14);g.lineTo(lx+16,14);g.stroke();
+  g.fillStyle=col('--fg');g.fillText(nm[j],lx+21,14)}
+}
+
+function loop(now){
+ const dt=(now-last)/1000;last=now;
+ if(run)t+=dt*TRATE*SPD;
+ draw();drawX();drawG();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
