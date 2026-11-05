@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+
+<script defer
+src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+
+<script defer
+src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+onload="renderMathInElement(document.body)"></script>
+
+<title>Reflexión de ondas en extremos fijos</title>
+
+<style>
+
+:root {
+  --bg:#f5f6f8;
+  --card:#ffffff;
+  --fg:#20242b;
+  --mute:#687080;
+  --line:#dce1e8;
+  --F:#e34848;
+  --G:#3478d4;
+  --C:#343b46;
+  --ghost:#aeb5bf;
+  --zone:#edf0f4;
+  --acc:#3478d4;
+}
+
+@media(prefers-color-scheme:dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#171a20;
+    --card:#222731;
+    --fg:#edf0f5;
+    --mute:#a5adbb;
+    --line:#3b4350;
+    --F:#ff7474;
+    --G:#70a9ff;
+    --C:#d1d8e2;
+    --ghost:#687282;
+    --zone:#292f39;
+    --acc:#70a9ff;
+  }
+}
+
+* {
+  box-sizing:border-box;
+}
+
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:system-ui,-apple-system,sans-serif;
+}
+
+main {
+  max-width:950px;
+  margin:auto;
+  padding:24px 16px 36px;
+}
+
+h1 {
+  font-size:1.45rem;
+  margin:0 0 8px;
+}
+
+.sub {
+  color:var(--mute);
+  font-size:.92rem;
+  line-height:1.6;
+  margin-bottom:20px;
+}
+
+.card {
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:16px;
+}
+
+.card h2 {
+  font-size:1.02rem;
+  margin:0 0 5px;
+}
+
+.d {
+  color:var(--mute);
+  font-size:.85rem;
+  line-height:1.5;
+  margin-bottom:12px;
+}
+
+canvas {
+  display:block;
+  width:100%;
+  height:auto;
+  aspect-ratio:900 / 240;
+  border-radius:8px;
+}
+
+.ctl {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:16px;
+  margin-bottom:18px;
+  font-size:.9rem;
+}
+
+.ctl label {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+button,input[type=button] {
+  font:inherit;
+  padding:8px 15px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--card);
+  color:var(--fg);
+  cursor:pointer;
+}
+
+button:hover,input[type=button]:hover {
+  background:var(--zone);
+}
+
+input[type=range] {
+  accent-color:var(--acc);
+}
+
+.legend {
+  display:flex;
+  gap:18px;
+  flex-wrap:wrap;
+  font-size:.82rem;
+  color:var(--mute);
+  margin:10px 0;
+}
+
+.legend span {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.dot {
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  display:inline-block;
+}
+
+.red {background:var(--F)}
+.blue {background:var(--G)}
+
+</style>
+</head>
+
+<body>
+
+<main>
+
+<h1>Reflexión de ondas en extremos fijos</h1>
+
+<p class="sub">
+Solución de d’Alembert en una cuerda de longitud L,
+con condiciones de Dirichlet:
+$$
+u(0,t)=u(L,t)=0
+$$
+</p>
+
+<div class="ctl">
+
+<button id="pp">Pausa</button>
+
+<label>
+Velocidad
+<input id="spd" type="range"
+min="0.1" max="2" step="0.05" value="0.5">
+</label>
+
+<input id="rst" type="button" value="Reiniciar">
+
+</div>
+
+
+<!-- PANEL 1 -->
+
+<div class="card">
+
+<h2>1. Componentes F y G: reflexión de las ondas</h2>
+
+<div class="d">
+Las dos componentes viajan en sentidos opuestos.
+Al alcanzar un extremo fijo, la reflexión aparece invertida.
+Observa cómo se relacionan F y G.
+</div>
+
+<div class="legend">
+<span><i class="dot red"></i> F: onda hacia la izquierda</span>
+<span><i class="dot blue"></i> G: onda hacia la derecha</span>
+</div>
+
+<canvas id="c1"></canvas>
+
+</div>
+
+<!-- PANEL 2 -->
+
+<div class="card">
+
+<h2>2. Perfil resultante de la cuerda</h2>
+
+<div class="d">
+Superposición de ambas componentes dentro del dominio físico.
+</div>
+
+<canvas id="c3"></canvas>
+
+</div>
+
+</main>
+
+
+<script>
+
+// ------------------------------------
+// PARÁMETROS
+// ------------------------------------
+
+const W = 900;
+const H = 240;
+
+const L = 1;
+const c0 = 0.5;
+const sg = 0.08;
+
+let t = 0;
+let last = performance.now();
+let running = true;
+
+const pp = document.getElementById('pp');
+const spd = document.getElementById('spd');
+
+
+// ------------------------------------
+// PERFIL INICIAL
+// ------------------------------------
+
+function basePulse(x) {
+
+  const dx = (x-c0)/sg;
+
+  return 0.5*Math.exp(-dx*dx);
+
+}
+
+
+// ------------------------------------
+// EXTENSIÓN IMPAR Y PERIÓDICA
+// ------------------------------------
+
+function f_ext(z) {
+
+  let q = ((z % (2*L)) + 2*L) % (2*L);
+
+  if(q <= L) {
+    return basePulse(q);
+  }
+
+  return -basePulse(2*L-q);
+
+}
+
+
+// ------------------------------------
+// COMPONENTES DE D'ALEMBERT
+// ------------------------------------
+
+function F(s,t) {
+
+  return 0.5*f_ext(s+t);
+
+}
+
+function G(s,t) {
+
+  return 0.5*f_ext(s-t);
+
+}
+
+function U(s,t) {
+
+  return F(s,t)+G(s,t);
+
+}
+
+
+// ------------------------------------
+// COLORES
+// ------------------------------------
+
+function color(name) {
+
+  return getComputedStyle(
+    document.documentElement
+  ).getPropertyValue(name).trim();
+
+}
+
+
+// ------------------------------------
+// CONFIGURACIÓN RESPONSIVE DEL CANVAS
+// ------------------------------------
+
+const canvases = ['c1','c3'];
+
+function setupCanvas(cv) {
+
+  const dpr = window.devicePixelRatio || 1;
+
+  const rect = cv.getBoundingClientRect();
+
+  const width = Math.round(rect.width*dpr);
+  const height = Math.round(rect.height*dpr);
+
+  if(cv.width !== width || cv.height !== height) {
+
+    cv.width = width;
+    cv.height = height;
+
+  }
+
+  const g = cv.getContext('2d');
+
+  g.setTransform(
+    width/W,0,
+    0,height/H,
+    0,0
+  );
+
+  return g;
+
+}
+
+
+// ------------------------------------
+// PAREDES
+// ------------------------------------
+
+function drawWall(g,x,side,Y0) {
+
+  g.strokeStyle = color('--C');
+  g.lineWidth = 3;
+
+  g.beginPath();
+  g.moveTo(x,Y0-75);
+  g.lineTo(x,Y0+75);
+  g.stroke();
+
+  g.lineWidth = 1;
+
+  for(let y=Y0-75;y<Y0+75;y+=9) {
+
+    g.beginPath();
+    g.moveTo(x,y+9);
+    g.lineTo(x+side*9,y);
+    g.stroke();
+
+  }
+
+}
+
+
+// ------------------------------------
+// DIBUJAR CURVAS
+// ------------------------------------
+
+function drawCurve(
+  g,fn,X,Y0,s0,s1,col,width,dash=[]
+) {
+
+  g.strokeStyle = col;
+  g.lineWidth = width;
+
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+
+  g.setLineDash(dash);
+
+  g.beginPath();
+
+  const N = 700;
+
+  for(let i=0;i<=N;i++) {
+
+    const s = s0+(s1-s0)*i/N;
+
+    const x = X(s);
+    const y = Y0-85*fn(s);
+
+    if(i===0) {
+      g.moveTo(x,y);
+    } else {
+      g.lineTo(x,y);
+    }
+
+  }
+
+  g.stroke();
+
+  g.setLineDash([]);
+
+}
+
+
+// ------------------------------------
+// LEYENDA Y REFERENCIAS
+// ------------------------------------
+
+function drawBase(g,X,Y0) {
+
+  const sMin = -0.15;
+  const sMax = 1.15;
+
+  const pad = 42;
+
+  const x = s => pad+
+    (s-sMin)/(sMax-sMin)*(W-2*pad);
+
+  // Zonas exteriores
+
+  g.fillStyle = color('--zone');
+
+  g.fillRect(0,0,x(0),H);
+  g.fillRect(x(L),0,W-x(L),H);
+
+  // Línea de equilibrio
+
+  g.strokeStyle = color('--ghost');
+  g.lineWidth = 1;
+
+  g.beginPath();
+  g.moveTo(0,Y0+0.5);
+  g.lineTo(W,Y0+0.5);
+  g.stroke();
+
+  // Paredes
+
+  drawWall(g,x(0),-1,Y0);
+  drawWall(g,x(L),1,Y0);
+
+  // Etiquetas
+
+  g.fillStyle = color('--mute');
+  g.font = '13px system-ui';
+  g.textAlign = 'center';
+  g.textBaseline = 'top';
+
+  g.fillText('s = 0',x(0),Y0+82);
+  g.fillText('s = L',x(L),Y0+82);
+
+  // Tiempo
+
+  g.textAlign = 'right';
+
+  g.fillText(
+    't = '+t.toFixed(2)+' L/v',
+    W-15,
+    14
+  );
+
+  return {x,sMin,sMax};
+
+}
+
+
+// ------------------------------------
+// PANEL 1: F Y G SIMULTÁNEAMENTE
+// ------------------------------------
+
+function render1(g) {
+
+  const Y0 = H/2;
+
+  const {x,sMin,sMax} = drawBase(g,null,Y0);
+
+  // F fuera del dominio
+
+  drawCurve(
+    g,s=>F(s,t),x,Y0,
+    sMin,0,
+    color('--F'),2,[6,5]
+  );
+
+  drawCurve(
+    g,s=>F(s,t),x,Y0,
+    L,sMax,
+    color('--F'),2,[6,5]
+  );
+
+  // G fuera del dominio
+
+  drawCurve(
+    g,s=>G(s,t),x,Y0,
+    sMin,0,
+    color('--G'),2,[6,5]
+  );
+
+  drawCurve(
+    g,s=>G(s,t),x,Y0,
+    L,sMax,
+    color('--G'),2,[6,5]
+  );
+
+  // F dentro del dominio
+
+  drawCurve(
+    g,s=>F(s,t),x,Y0,
+    0,L,
+    color('--F'),3
+  );
+
+  // G dentro del dominio
+
+  drawCurve(
+    g,s=>G(s,t),x,Y0,
+    0,L,
+    color('--G'),3
+  );
+
+}
+
+// ------------------------------------
+// PANEL 3: RESULTADO
+// ------------------------------------
+
+function render2(g) {
+
+  const Y0 = H/2;
+
+  const {x} = drawBase(g,null,Y0);
+
+  drawCurve(
+    g,s=>U(s,t),x,Y0,
+    0,L,
+    color('--acc'),3.5
+  );
+
+}
+
+
+// ------------------------------------
+// RENDERIZADO GENERAL
+// ------------------------------------
+
+function render() {
+
+  const g1 = setupCanvas(
+    document.getElementById('c1')
+  );
+
+  const g3 = setupCanvas(
+    document.getElementById('c3')
+  );
+  
+  g1.clearRect(0,0,W,H);
+  g3.clearRect(0,0,W,H);
+
+  render1(g1);
+  render2(g3);
+}
+
+
+// ------------------------------------
+// CONTROLES
+// ------------------------------------
+
+pp.onclick = () => {
+
+  running = !running;
+
+  pp.textContent = running
+    ? 'Pausa'
+    : 'Reanudar';
+
+};
+
+document.getElementById('rst').onclick = () => {
+
+  t = 0;
+  render();
+
+};
+
+
+// ------------------------------------
+// ANIMACIÓN
+// ------------------------------------
+
+function loop(now) {
+
+  const dt = Math.min(
+    (now-last)/1000,
+    0.05
+  );
+
+  last = now;
+
+  if(running) {
+
+    t += dt*parseFloat(spd.value);
+
+  }
+
+  render();
+
+  requestAnimationFrame(loop);
+
+}
+
+
+// ------------------------------------
+// REDIMENSIONAMIENTO
+// ------------------------------------
+
+const observer = new ResizeObserver(() => {
+
+  render();
+
+});
+
+canvases.forEach(id => {
+
+  observer.observe(document.getElementById(id));
+
+});
+
+
+// INICIO
+
+render();
+
+requestAnimationFrame(loop);
+
+</script>
+
+</body>
+</html>
